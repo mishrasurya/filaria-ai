@@ -81,6 +81,46 @@ with st.sidebar:
     ]
 
 # ---------------------------------------------------
+# SHARED CSS: Hide Streamlit system status bar (both themes)
+# ---------------------------------------------------
+
+shared_css = """
+<style>
+/* ── Hide ALL Streamlit running/status indicators ── */
+
+/* Main status widget */
+[data-testid="stStatusWidget"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Bottom-left "Running func(...)" bar */
+.stAppRunningIndicator,
+[data-testid="stAppRunningIndicator"],
+.running-indicator,
+iframe[title="running_indicator"],
+div[class*="StatusWidget"],
+div[class*="statusWidget"],
+div[class*="status-widget"],
+div[class*="RunningIndicator"],
+div[class*="runningIndicator"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Nuclear option: hide any element whose text contains "Running" 
+   This is handled by JS below since CSS can't target text content */
+
+.stAppDeployButton,
+[data-testid="stDecoration"] {
+    display: none !important;
+}
+</style>
+"""
+
+st.markdown(shared_css, unsafe_allow_html=True)
+
+# ---------------------------------------------------
 # LIGHT THEME
 # ---------------------------------------------------
 
@@ -162,6 +202,20 @@ header[data-testid="stHeader"] {
 .hero-sub {
     color: #e6ecff;
     font-size: 16px;
+}
+
+/* Loading banner — light */
+.loading-banner {
+    background: linear-gradient(135deg, #1F3FD6, #2F5BFF);
+    color: white !important;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(47,91,255,0.3);
+    margin: 16px auto;
+    max-width: 480px;
 }
 
 /* Welcome card */
@@ -383,6 +437,20 @@ div[class*="stBottom"] {
     font-size: 16px;
 }
 
+/* Loading banner — dark */
+.loading-banner {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: white !important;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    margin: 16px auto;
+    max-width: 480px;
+}
+
 /* Welcome card */
 .welcome-card {
     background: #1e293b;
@@ -566,8 +634,24 @@ else:
     st.markdown(dark_css, unsafe_allow_html=True)
 
 # JS: Force input box styles for dark mode (bypasses Streamlit CSS specificity)
+# Also hides the system status bar via JS as a belt-and-suspenders approach
+st.markdown("""
+<script>
+(function() {
+    function hideStatusBar() {
+        var els = document.querySelectorAll('[data-testid="stStatusWidget"], [data-testid="stAppRunningIndicator"]');
+        els.forEach(function(el) { el.style.setProperty('display', 'none', 'important'); });
+    }
+    hideStatusBar();
+    setInterval(hideStatusBar, 200);
+    new MutationObserver(hideStatusBar).observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+""", unsafe_allow_html=True)
+
+# JS: Force dark mode input styles — via st.markdown so it runs in the main DOM
 if st.session_state.theme == "Dark":
-    st.components.v1.html("""
+    st.markdown("""
     <script>
     (function styleInput() {
         function applyStyles() {
@@ -590,11 +674,10 @@ if st.session_state.theme == "Dark":
         }
         applyStyles();
         setInterval(applyStyles, 500);
-        var observer = new MutationObserver(applyStyles);
-        observer.observe(document.body, { childList: true, subtree: true });
+        new MutationObserver(applyStyles).observe(document.body, { childList: true, subtree: true });
     })();
     </script>
-    """, height=0, scrolling=False)
+    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
 # HERO
@@ -680,48 +763,47 @@ def cosine_similarity(a, b):
 
 # ---------------------------------------------------
 # LOAD KNOWLEDGE
+# (Underscore prefix keeps Streamlit's status bar text subtle;
+#  CSS + JS above hides it entirely anyway)
 # ---------------------------------------------------
 
-@st.cache_resource
-def _load_knowledge_cached(pdf_folder):   # renamed with underscore — hides it from status bar
+@st.cache_resource(show_spinner=False)
+def _load_knowledge_cached(pdf_folder):
     documents = []
     embeddings = []
+
     for file in os.listdir(pdf_folder):
         if file.endswith(".pdf"):
             path = os.path.join(pdf_folder, file)
+
             raw = extract_text_from_pdf(path)
             cleaned = clean_text(raw)
             chunks = chunk_text(cleaned)
+
             for chunk in chunks[:12]:
                 vec = embed_text(chunk)
                 documents.append(chunk)
                 embeddings.append(vec)
+
     return documents, embeddings
 
+
+# First load
 if not st.session_state.documents:
-    placeholder = st.empty()
-    placeholder.markdown("""
-        <div style="
-            background: linear-gradient(135deg, #1F3FD6, #2F5BFF);
-            color: white;
-            padding: 20px 28px;
-            border-radius: 16px;
-            font-size: 16px;
-            font-weight: 500;
-            text-align: center;
-            box-shadow: 0 8px 24px rgba(47,91,255,0.3);
-            margin: 20px auto;
-            max-width: 500px;
-        ">
-            🦟 &nbsp; Loading FilariaAI knowledge base...<br>
-            <span style="font-size:13px; opacity:0.85;">Please wait a moment while we prepare your assistant.</span>
-        </div>
-    """, unsafe_allow_html=True)
+
+    loading_slot = st.empty()
+
+    loading_slot.markdown(
+        '<div class="loading-banner">🦟 &nbsp; Loading knowledge base... please wait.</div>',
+        unsafe_allow_html=True
+    )
+
     docs, emb = _load_knowledge_cached("data")
+
     st.session_state.documents = docs
     st.session_state.embeddings = emb
-    placeholder.empty()
 
+    loading_slot.empty()
 # ---------------------------------------------------
 # LLM
 # ---------------------------------------------------
