@@ -683,7 +683,7 @@ def cosine_similarity(a, b):
 # ---------------------------------------------------
 
 @st.cache_resource
-def load_knowledge(pdf_folder):
+def _load_knowledge_cached(pdf_folder):   # renamed with underscore — hides it from status bar
     documents = []
     embeddings = []
     for file in os.listdir(pdf_folder):
@@ -699,10 +699,28 @@ def load_knowledge(pdf_folder):
     return documents, embeddings
 
 if not st.session_state.documents:
-    with st.spinner("🦟 Loading FilariaAI knowledge base... Please wait a moment."):
-        docs, emb = load_knowledge("data")
-        st.session_state.documents = docs
-        st.session_state.embeddings = emb
+    placeholder = st.empty()
+    placeholder.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #1F3FD6, #2F5BFF);
+            color: white;
+            padding: 20px 28px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(47,91,255,0.3);
+            margin: 20px auto;
+            max-width: 500px;
+        ">
+            🦟 &nbsp; Loading FilariaAI knowledge base...<br>
+            <span style="font-size:13px; opacity:0.85;">Please wait a moment while we prepare your assistant.</span>
+        </div>
+    """, unsafe_allow_html=True)
+    docs, emb = _load_knowledge_cached("data")
+    st.session_state.documents = docs
+    st.session_state.embeddings = emb
+    placeholder.empty()
 
 # ---------------------------------------------------
 # LLM
