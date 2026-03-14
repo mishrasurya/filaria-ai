@@ -699,9 +699,10 @@ def load_knowledge(pdf_folder):
     return documents, embeddings
 
 if not st.session_state.documents:
-    docs, emb = load_knowledge("data")
-    st.session_state.documents = docs
-    st.session_state.embeddings = emb
+    with st.spinner("🦟 Loading FilariaAI knowledge base... Please wait a moment."):
+        docs, emb = load_knowledge("data")
+        st.session_state.documents = docs
+        st.session_state.embeddings = emb
 
 # ---------------------------------------------------
 # LLM
